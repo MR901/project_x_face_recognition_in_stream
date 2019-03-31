@@ -1,0 +1,87 @@
+SELECT
+  SID,
+--   Date,
+  BinsBackFromCurrent,
+  apidata._zpsbd6 AS IP,
+  CASE
+    WHEN captcha_shown == 0 AND captcha_solved > 0 AND bot > 0 THEN 'UNSOLVED_ARRIVED'
+    WHEN captcha_shown > 0 AND captcha_solved > 0 AND bot > 0 THEN 'SOLVED_ARRIVED'
+    WHEN captcha_shown > 0 AND captcha_solved > 0 AND bot == 0 THEN 'SOLVED_ARRIVED'
+    WHEN captcha_shown > 0 AND captcha_solved == 0 AND bot > 0 THEN 'UNSOLVED_ARRIVED'
+    WHEN captcha_shown > 0 AND captcha_solved == 0 AND bot == 0 THEN 'UNSOLVED_ARRIVED'
+    WHEN captcha_shown == 0 AND captcha_solved == 0 AND bot > 0 THEN 'UNSOLVED_ARRIVED'
+    WHEN captcha_shown == 0 AND captcha_solved == 0 AND bot == 0 THEN NULL
+  -- When captcha_shown == 0 and captcha_solved == 0 then 'NOT_ARRIVED'
+  END AS feedback_status,
+--   hits,
+--   normal_call_type,
+--   captcha_shown,
+--   captcha_solved,
+--   bot,
+  MostRecentHitTimeStamp,
+--   MostRecentHitTimeDiffToCurrent,
+--   FirstHitTimeDiffToCurrent,
+--   TimePeriodIPWasActive,
+  
+FROM (
+  SELECT
+    sid AS SID,
+    --   (CASE
+      --         WHEN subSTRING(apirecvtime, 4, 3) = 'Jan' THEN CONCAT(subSTRING(apirecvtime, 8, 4), '-01-', subSTRING(apirecvtime, 1, 2))
+      --         WHEN subSTRING(apirecvtime, 4, 3) = 'Feb' THEN CONCAT(subSTRING(apirecvtime, 8, 4), '-02-', subSTRING(apirecvtime, 1, 2))
+      --         WHEN subSTRING(apirecvtime, 4, 3) = 'Mar' THEN CONCAT(subSTRING(apirecvtime, 8, 4), '-03-', subSTRING(apirecvtime, 1, 2))
+      --         WHEN subSTRING(apirecvtime, 4, 3) = 'Apr' THEN CONCAT(subSTRING(apirecvtime, 8, 4), '-04-', subSTRING(apirecvtime, 1, 2))
+      --         WHEN subSTRING(apirecvtime, 4, 3) = 'May' THEN CONCAT(subSTRING(apirecvtime, 8, 4), '-05-', subSTRING(apirecvtime, 1, 2))
+      --         WHEN subSTRING(apirecvtime, 4, 3) = 'Jun' THEN CONCAT(subSTRING(apirecvtime, 8, 4), '-06-', subSTRING(apirecvtime, 1, 2))
+      --         WHEN subSTRING(apirecvtime, 4, 3) = 'Jul' THEN CONCAT(subSTRING(apirecvtime, 8, 4), '-07-', subSTRING(apirecvtime, 1, 2))
+      --         WHEN subSTRING(apirecvtime, 4, 3) = 'Aug' THEN CONCAT(subSTRING(apirecvtime, 8, 4), '-08-', subSTRING(apirecvtime, 1, 2))
+      --         WHEN subSTRING(apirecvtime, 4, 3) = 'Sep' THEN CONCAT(subSTRING(apirecvtime, 8, 4), '-09-', subSTRING(apirecvtime, 1, 2))
+      --         WHEN subSTRING(apirecvtime, 4, 3) = 'Oct' THEN CONCAT(subSTRING(apirecvtime, 8, 4), '-10-', subSTRING(apirecvtime, 1, 2))
+      --         WHEN subSTRING(apirecvtime, 4, 3) = 'Nov' THEN CONCAT(subSTRING(apirecvtime, 8, 4), '-11-', subSTRING(apirecvtime, 1, 2))
+      --         WHEN subSTRING(apirecvtime, 4, 3) = 'Dec' THEN CONCAT(subSTRING(apirecvtime, 8, 4), '-12-', subSTRING(apirecvtime, 1, 2))END) AS Date,
+    BinsBackFromCurrent,
+    apidata._zpsbd6,
+    COUNT(1) AS hits,
+    SUM(CASE
+        WHEN apidata._zpsbd8 == 1 THEN 1
+        ELSE 0 END) AS normal_call_type,
+    SUM(CASE
+        WHEN apidata._zpsbd8 == 4 THEN 1
+        ELSE 0 END) AS captcha_shown,
+    SUM(CASE
+        WHEN apidata._zpsbd8 == 5 THEN 1
+        ELSE 0 END) AS captcha_solved,
+    SUM(CASE
+        WHEN apidata.isbot IS NOT NULL THEN 1
+        ELSE 0 END) AS bot,
+    MAX(CurrentHitTimeStamp) AS MostRecentHitTimeStamp,
+    MIN(HitTimeDiffToCurrent) AS MostRecentHitTimeDiffToCurrent,
+    MAX(HitTimeDiffToCurrent) AS FirstHitTimeDiffToCurrent,
+    (MAX(HitTimeDiffToCurrent) - MIN(HitTimeDiffToCurrent)) AS TimePeriodIPWasActive,
+  FROM (
+    SELECT
+      (CASE
+          {BinToUse} 
+      END) AS BinsBackFromCurrent,
+      *,
+      (CurrentTimeStamp - CurrentHitTimeStamp) AS HitTimeDiffToCurrent
+    FROM (
+      SELECT
+        sid,
+        apirecvtime,
+        apidata._zpsbd6,
+        apidata._zpsbd8,
+        apidata.isbot,
+        --     INTEGER(apidata.__uzmd) AS CurrentHitTimeStamp,
+        INTEGER(apidata._zpsbda) AS CurrentHitTimeStamp, 
+        MAX(INTEGER(apidata._zpsbda)) OVER(PARTITION BY sid) AS CurrentTimeStamp,
+        ## basis is the most recent hit timestamp
+      FROM
+        {TableToInclude}
+        ) )
+  GROUP BY
+    SID,
+    --     Date,
+    BinsBackFromCurrent,
+    apidata._zpsbd6,
+    )
